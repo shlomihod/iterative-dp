@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 import argparse
 from tqdm import tqdm
@@ -86,9 +88,11 @@ class PEP:
     """
     Our implementation of Iterative Projection.
     """
-    def generate(self, real_db: Dataset, iterations: int, epsilon: float):
+    def generate(self, real_db: Dataset, iterations: int, epsilon: float, delta: float | None):
         N = len(real_db.df)
-        delta = 1/N**2
+        if delta is None:
+            delta = 1/N**2
+
         rho = cdp_rho(epsilon, delta)
         eps0 = (2 * rho) ** 0.5 / (2 * iterations) ** 0.5
 
@@ -144,134 +148,134 @@ class PEP:
         self.synthethic_weights = self.synthethic_weights / self.synthethic_weights.sum()
 
 
-def get_args():
-    parser = argparse.ArgumentParser()
+# def get_args():
+#     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--num_runs', type=int, default=1)
-    parser.add_argument('--dataset', type=str, help='queries', default='adult')
-    parser.add_argument('--marginal', type=int, help='queries', default=3)
-    parser.add_argument('--workload', type=int, help='queries', default=32)
-    parser.add_argument('--workload_seed', type=int, default=0)
-    parser.add_argument('--T', type=int, default=10)
-    parser.add_argument('--epsilon', type=float, help='Privacy parameter', default=0.1)
-    # misc params
-    parser.add_argument('--permute', action='store_true')
-    # acs params
-    parser.add_argument('--state', type=str, default=None)
-    # adult params
-    parser.add_argument('--adult_seed', type=int, default=0)
-    parser.add_argument('--iters', type=int, default=1000)
+#     parser.add_argument('--num_runs', type=int, default=1)
+#     parser.add_argument('--dataset', type=str, help='queries', default='adult')
+#     parser.add_argument('--marginal', type=int, help='queries', default=3)
+#     parser.add_argument('--workload', type=int, help='queries', default=32)
+#     parser.add_argument('--workload_seed', type=int, default=0)
+#     parser.add_argument('--T', type=int, default=10)
+#     parser.add_argument('--epsilon', type=float, help='Privacy parameter', default=0.1)
+#     # misc params
+#     parser.add_argument('--permute', action='store_true')
+#     # acs params
+#     parser.add_argument('--state', type=str, default=None)
+#     # adult params
+#     parser.add_argument('--adult_seed', type=int, default=0)
+#     parser.add_argument('--iters', type=int, default=1000)
 
-    args = parser.parse_args()
+#     args = parser.parse_args()
 
-    print(args)
-    return args
+#     print(args)
+#     return args
 
-def main_multi_proc(AlgorithmClass):
-    args = get_args()
+# def main_multi_proc(AlgorithmClass):
+#     args = get_args()
 
-    dataset_name = args.dataset
-    if args.dataset.startswith('acs_') and args.state is not None:
-        dataset_name += '_{}'.format(args.state)
-    if args.dataset.startswith('adult') and args.adult_seed is not None:
-        dataset_name += '_{}'.format(args.adult_seed)
+#     dataset_name = args.dataset
+#     if args.dataset.startswith('acs_') and args.state is not None:
+#         dataset_name += '_{}'.format(args.state)
+#     if args.dataset.startswith('adult') and args.adult_seed is not None:
+#         dataset_name += '_{}'.format(args.adult_seed)
 
-    results_dir ='results/{}'.format(dataset_name)
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
+#     results_dir ='results/{}'.format(dataset_name)
+#     if not os.path.exists(results_dir):
+#         os.makedirs(results_dir)
 
-    save_dir_query = 'save/qm/{}/{}_{}_{}/'.format(args.dataset, args.marginal, args.workload, args.workload_seed)
-    save_dir_xy = save_dir_query
-    for d in [save_dir_query, save_dir_xy]:
-        if not os.path.exists(d):
-            os.makedirs(d)
+#     save_dir_query = 'save/qm/{}/{}_{}_{}/'.format(args.dataset, args.marginal, args.workload, args.workload_seed)
+#     save_dir_xy = save_dir_query
+#     for d in [save_dir_query, save_dir_xy]:
+#         if not os.path.exists(d):
+#             os.makedirs(d)
 
-    proj = get_proj(args.dataset)
-    if args.dataset.endswith('-small'):
-        args.dataset = args.dataset[:-6]
-    filter_private, filter_pub = get_filters(args)
+#     proj = get_proj(args.dataset)
+#     if args.dataset.endswith('-small'):
+#         args.dataset = args.dataset[:-6]
+#     filter_private, filter_pub = get_filters(args)
 
-    data, workloads = randomKway(args.dataset, args.workload, args.marginal, seed=args.workload_seed, proj=proj, filter=filter_private, args=args)
-    N = data.df.shape[0]
+#     data, workloads = randomKway(args.dataset, args.workload, args.marginal, seed=args.workload_seed, proj=proj, filter=filter_private, args=args)
+#     N = data.df.shape[0]
 
-    delta = 1.0 / N ** 2
-    rho = cdp_rho(args.epsilon, delta)
-    eps0 = (2 * rho) ** 0.5 / (2 * args.T) ** 0.5
+#     delta = 1.0 / N ** 2
+#     rho = cdp_rho(args.epsilon, delta)
+#     eps0 = (2 * rho) ** 0.5 / (2 * args.T) ** 0.5
 
-    my_marginals = MyMarginals(data.domain, workloads)
-    dom_size = data.domain.size()
-    A_init = np.ones(dom_size) / dom_size
+#     my_marginals = MyMarginals(data.domain, workloads)
+#     dom_size = data.domain.size()
+#     A_init = np.ones(dom_size) / dom_size
 
-    # Get initial errors
-    real_answers = my_marginals.get_answers(data, concat=False)
-    fake_answers = my_marginals.get_answers_weights(A_init, concat=False)
-    init_errors = util.get_errors(real_answers, fake_answers)
+#     # Get initial errors
+#     real_answers = my_marginals.get_answers(data, concat=False)
+#     fake_answers = my_marginals.get_answers_weights(A_init, concat=False)
+#     init_errors = util.get_errors(real_answers, fake_answers)
 
-    result_cols = {'adult_seed': [args.adult_seed],
-                   'marginal': [args.marginal],
-                   'num_workloads': [len(workloads)],
-                   'workload_seed': [args.workload_seed],
-                   'num_queries': [np.concatenate(real_answers).shape[0]],
-                   'priv_size': [N],
-                   }
-    def run_parallel(run_id, results_list):
-        np.random.seed(run_id)
-        ew_algorithm = AlgorithmClass(data_domain=data.domain, my_marginals=my_marginals, max_iters=args.iters)
-        A_last = ew_algorithm.generate(data, args.T, args.epsilon)
-        run_id = hash(time.time())
-        fake_answers = my_marginals.get_answers_weights(A_last, concat=False)
-        last_errors = util.get_errors(real_answers, fake_answers)
+#     result_cols = {'adult_seed': [args.adult_seed],
+#                    'marginal': [args.marginal],
+#                    'num_workloads': [len(workloads)],
+#                    'workload_seed': [args.workload_seed],
+#                    'num_queries': [np.concatenate(real_answers).shape[0]],
+#                    'priv_size': [N],
+#                    }
+#     def run_parallel(run_id, results_list):
+#         np.random.seed(run_id)
+#         ew_algorithm = AlgorithmClass(data_domain=data.domain, my_marginals=my_marginals, max_iters=args.iters)
+#         A_last = ew_algorithm.generate(data, args.T, args.epsilon)
+#         run_id = hash(time.time())
+#         fake_answers = my_marginals.get_answers_weights(A_last, concat=False)
+#         last_errors = util.get_errors(real_answers, fake_answers)
 
-        results = {'run_id': run_id,
-                   'epsilon': args.epsilon,
-                   'max_iters': args.iters,
-                   'permute': args.permute,
-                   'T': args.T,
-                   'rho': rho,
-                   'eps0': eps0,
-                   }
-        results_errors = {'max_error_init': init_errors['max'],
-                          'mean_error_init': init_errors['mean'],
-                          'median_error_init': init_errors['median'],
-                          'mean_squared_error_init': init_errors['mean_squared'],
-                          'mean_workload_squared_error_init': init_errors['mean_workload_squared'],
+#         results = {'run_id': run_id,
+#                    'epsilon': args.epsilon,
+#                    'max_iters': args.iters,
+#                    'permute': args.permute,
+#                    'T': args.T,
+#                    'rho': rho,
+#                    'eps0': eps0,
+#                    }
+#         results_errors = {'max_error_init': init_errors['max'],
+#                           'mean_error_init': init_errors['mean'],
+#                           'median_error_init': init_errors['median'],
+#                           'mean_squared_error_init': init_errors['mean_squared'],
+#                           'mean_workload_squared_error_init': init_errors['mean_workload_squared'],
 
-                          'max_error_last': last_errors['max'],
-                          'mean_error_last': last_errors['mean'],
-                          'median_error_last': last_errors['median'],
-                          'mean_squared_error_last': last_errors['mean_squared'],
-                          'root_mean_squared_error_last': np.sqrt(last_errors['mean_squared']),
-                          'mean_workload_squared_error_last': last_errors['mean_workload_squared'],
-                          }
-        df_results = pd.DataFrame.from_dict(result_cols)
-        for key, val in results.items():
-            df_results[key] = val
-        for key, val in results_errors.items():
-            df_results[key] = val
+#                           'max_error_last': last_errors['max'],
+#                           'mean_error_last': last_errors['mean'],
+#                           'median_error_last': last_errors['median'],
+#                           'mean_squared_error_last': last_errors['mean_squared'],
+#                           'root_mean_squared_error_last': np.sqrt(last_errors['mean_squared']),
+#                           'mean_workload_squared_error_last': last_errors['mean_workload_squared'],
+#                           }
+#         df_results = pd.DataFrame.from_dict(result_cols)
+#         for key, val in results.items():
+#             df_results[key] = val
+#         for key, val in results_errors.items():
+#             df_results[key] = val
 
-        if args.dataset != 'adult':
-            del df_results['adult_seed']
+#         if args.dataset != 'adult':
+#             del df_results['adult_seed']
 
-        results_list.append(df_results)
+#         results_list.append(df_results)
 
-    processes = []
-    manager = mp.Manager()
-    mp_results = manager.list()
-    for t in range(args.num_runs):
-        proc = mp.Process(target=run_parallel, args=(t, mp_results))
-        proc.start()
-        processes.append(proc)
+#     processes = []
+#     manager = mp.Manager()
+#     mp_results = manager.list()
+#     for t in range(args.num_runs):
+#         proc = mp.Process(target=run_parallel, args=(t, mp_results))
+#         proc.start()
+#         processes.append(proc)
 
-    for p in processes:
-        p.join()
+#     for p in processes:
+#         p.join()
 
-    for df_results in mp_results:
-        print(df_results[['marginal', 'num_workloads', 'epsilon', 'T', 'max_error_last', 'root_mean_squared_error_last']])
+#     for df_results in mp_results:
+#         print(df_results[['marginal', 'num_workloads', 'epsilon', 'T', 'max_error_last', 'root_mean_squared_error_last']])
 
-    print(f'Saving in {results_dir}...')
-    for df_results in mp_results:
-        results_path = os.path.join(results_dir, '{}.csv'.format(AlgorithmClass.__name__.lower()))
-        save_results(df_results, results_path=results_path)
+#     print(f'Saving in {results_dir}...')
+#     for df_results in mp_results:
+#         results_path = os.path.join(results_dir, '{}.csv'.format(AlgorithmClass.__name__.lower()))
+#         save_results(df_results, results_path=results_path)
 
-if __name__ == "__main__":
-    main_multi_proc(PEP)
+# if __name__ == "__main__":
+#     main_multi_proc(PEP)

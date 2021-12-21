@@ -7,8 +7,9 @@ from iterative_dp.mbi import Dataset, Domain
 
 
 class PEPSynth:
-    def __init__(self, epsilon, marginal=3, workload=32, workload_seed=0, T=10, iters=1000):
+    def __init__(self, epsilon, delta, marginal=3, workload=32, workload_seed=0, T=10, iters=1000):
         self.epsilon = epsilon
+        self.delta = delta
         self.marginal = marginal
         self.workload = workload
         self.workload_seed = workload_seed
@@ -33,7 +34,7 @@ class PEPSynth:
         self.ew_algorithm = PEP(data_domain=self.dataset.domain,
                                 my_marginals=self.my_marginals,
                                 max_iters=self.iters)
-        self.A_last = self.ew_algorithm.generate(self.dataset, self.T, self.epsilon)
+        self.A_last = self.ew_algorithm.generate(self.dataset, self.T, self.epsilon, self.delta)
         self.is_fitted= True
 
     def sample(self, n_records):
